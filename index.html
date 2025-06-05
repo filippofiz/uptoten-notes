@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UpToTen Notes - Quaderno Digitale Intelligente</title>
+    
+    <!-- Librerie esterne -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Stili -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="login-container" id="loginScreen">
+        <div class="login-box">
+            <div class="logo">
+                <div class="logo-icon">10</div>
+                <div class="logo-text">UpToTen</div>
+            </div>
+            <p style="margin-bottom: 2rem; color: #666; font-size: 1.1rem;">
+                Il quaderno digitale che rivoluziona l'apprendimento
+            </p>
+            
+            <!-- TUTOR LOGIN -->
+            <div id="tutorLogin">
+                <button class="google-btn" onclick="loginWithGoogle('tutor')">
+                    <svg width="20" height="20" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Accedi come Tutor
+                </button>
+                <p style="margin-top: 1rem; font-size: 12px; color: #999;">Solo account Google @uptoten.it</p>
+                
+                <div style="margin-top: 3rem;">
+                    <a href="#" onclick="showStudentLogin()" style="color: var(--primary-green); text-decoration: none; font-weight: 600;">
+                        Accesso Studenti →
+                    </a>
+                </div>
+            </div>
+
+            <!-- STUDENT LOGIN -->
+            <div id="studentLogin" style="display: none;">
+                <h3 style="margin-bottom: 1.5rem; color: var(--primary-blue);">👨‍🎓 Accesso Studenti</h3>
+                
+                <input type="email" id="studentEmail" class="modern-input" placeholder="La tua email" 
+                       style="width: 100%; margin-bottom: 1rem;" required>
+                
+                <input type="password" id="studentPassword" class="modern-input" placeholder="Password" 
+                       style="width: 100%; margin-bottom: 1.5rem;" required>
+                
+                <button onclick="loginStudent()" class="google-btn" style="width: 100%; background: var(--primary-green); border: none;">
+                    🚀 Entra nel Quaderno
+                </button>
+                
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    <p style="color: #666; font-size: 14px; margin: 0;">
+                        Non hai un account? Serve un <strong>invito dal tutor</strong>
+                    </p>
+                </div>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <a href="#" onclick="showTutorLogin()" style="color: #666; text-decoration: none; font-size: 14px;">
+                        ← Torna al login tutor
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutor App -->
+    <div class="app-container" id="tutorApp">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" style="margin: 0;">
+                    <div class="logo-icon" style="width: 40px; height: 40px; font-size: 20px;">10</div>
+                    <div class="logo-text" style="font-size: 1.5rem;">UpToTen</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <select id="studentSelector" style="padding: 8px 16px; background: var(--light-green); border-radius: 20px; border: none; font-weight: 600; cursor: pointer;">
+                        <option>Seleziona studente...</option>
+                    </select>
+                    <button onclick="showAddStudentModal()" style="width: 30px; height: 30px; border-radius: 50%; background: var(--primary-green); color: white; border: none; cursor: pointer; font-size: 16px;">+</button>
+                </div>
+            </div>
+            <div class="user-info">
+                <span style="font-weight: 600;">Caricamento...</span>
+                <div class="user-avatar">...</div>
+                <button onclick="logout()" style="background: none; border: 2px solid #ddd; padding: 8px 16px; border-radius: 20px; cursor: pointer;">
+                    Esci
+                </button>
+            </div>
+        </header>
+
+        <div class="notebook-container">
+            <!-- Subject Tabs -->
+            <div class="subject-tabs" id="subjectTabs">
+                <button class="subject-tab add-subject-tab" onclick="addSubject()">+</button>
+            </div>
+
+            <!-- Page Area -->
+            <div class="page-area">
+                <div class="page-wrapper">
+                    <canvas id="noteCanvas"></canvas>
+                    
+                    <!-- Toolbar -->
+                    <div class="toolbar">
+                        <div class="tool-group">
+                            <button class="tool-btn active" onclick="selectTool('pencil', event)">
+                                ✏️
+                                <span class="tooltip">Penna</span>
+                            </button>
+                            <button class="tool-btn" onclick="selectTool('eraser', event)">
+                                🧽
+                                <span class="tooltip">Gomma</span>
+                            </button>
+                            <button class="tool-btn" onclick="selectTool('text', event)">
+                                T
+                                <span class="tooltip">Testo</span>
+                            </button>
+                        </div>
+                        
+                        <div class="tool-group">
+                            <button class="tool-btn shape-important" onclick="addSpecialShape('important')">
+                                ⚡
+                                <span class="tooltip">Importante</span>
+                            </button>
+                            <button class="tool-btn shape-formula" onclick="addSpecialShape('formula')">
+                                ∑
+                                <span class="tooltip">Formula</span>
+                            </button>
+                            <button class="tool-btn shape-remember" onclick="addSpecialShape('remember')">
+                                💡
+                                <span class="tooltip">Ricorda</span>
+                            </button>
+                        </div>
+
+                        <div class="tool-group">
+                            <button class="tool-btn" onclick="selectTool('rect', event)">
+                                ▢
+                                <span class="tooltip">Rettangolo</span>
+                            </button>
+                            <button class="tool-btn" onclick="selectTool('circle', event)">
+                                ○
+                                <span class="tooltip">Cerchio</span>
+                            </button>
+                            <button class="tool-btn" onclick="selectTool('arrow', event)">
+                                →
+                                <span class="tooltip">Freccia</span>
+                            </button>
+                        </div>
+
+                        <div class="tool-group">
+                            <input type="color" id="colorPicker" value="#000000" 
+                                   style="width: 40px; height: 40px; border: none; border-radius: 50%; cursor: pointer;"
+                                   onchange="changeColor(this.value)">
+                            <button class="tool-btn" onclick="uploadImage()">
+                                📷
+                                <span class="tooltip">Immagine</span>
+                            </button>
+                            <button class="tool-btn ocr-btn" onclick="performOCR()">
+                                🔍
+                                <span class="tooltip">Riconosci testo</span>
+                            </button>
+                        </div>
+
+                        <div class="tool-group">
+                            <button class="tool-btn" onclick="setBackground('none', event)">
+                                ⬜
+                                <span class="tooltip">Nessuno</span>
+                            </button>
+                            <button class="tool-btn active" onclick="setBackground('lines', event)">
+                                ≡
+                                <span class="tooltip">Righe</span>
+                            </button>
+                            <button class="tool-btn" onclick="setBackground('grid-small', event)">
+                                ⋮⋮
+                                <span class="tooltip">Quadretti piccoli</span>
+                            </button>
+                            <button class="tool-btn" onclick="setBackground('grid-large', event)">
+                                ⊞
+                                <span class="tooltip">Quadretti grandi</span>
+                            </button>
+                        </div>
+
+                        <div class="tool-group">
+                            <button class="tool-btn" onclick="undo()">
+                                ↶
+                                <span class="tooltip">Annulla</span>
+                            </button>
+                            <button class="tool-btn" onclick="redo()">
+                                ↷
+                                <span class="tooltip">Ripeti</span>
+                            </button>
+                            <button class="tool-btn" onclick="saveCurrentPage()">
+                                💾
+                                <span class="tooltip">Salva</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sync Status -->
+                    <div class="sync-status synced">
+                        <span class="sync-dot"></span> Salvato
+                    </div>
+
+                    <!-- New Page Button -->
+                    <button class="new-page-btn" onclick="newPage()">+</button>
+
+                    <!-- Zoom Controls -->
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" onclick="zoomOut()">−</button>
+                        <span class="zoom-level" id="zoomLevel">100%</span>
+                        <button class="zoom-btn" onclick="zoomIn()">+</button>
+                        <button class="zoom-btn" onclick="resetZoom()">⟲</button>
+                    </div>
+
+                    <!-- Page Navigation -->
+                    <div class="page-nav">
+                        <button class="page-btn" onclick="previousPage()" id="prevPageBtn">◀</button>
+                        <span class="page-info" id="pageInfo">Pagina 1 di 1</span>
+                        <button class="page-btn" onclick="nextPage()" id="nextPageBtn">▶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student App -->
+    <div class="app-container student-view" id="studentApp">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo" style="margin: 0;">
+                    <div class="logo-icon" style="width: 40px; height: 40px; font-size: 20px;">10</div>
+                    <div class="logo-text" style="font-size: 1.5rem;">UpToTen</div>
+                </div>
+                <div style="padding: 8px 16px; background: var(--light-green); border-radius: 20px;">
+                    <span style="font-weight: 600;">Il mio quaderno digitale</span>
+                </div>
+            </div>
+            <div class="user-info">
+                <span style="font-weight: 600;">Caricamento...</span>
+                <div class="user-avatar" style="background: var(--primary-green);">...</div>
+                <button onclick="logout()" style="background: none; border: 2px solid #ddd; padding: 8px 16px; border-radius: 20px; cursor: pointer;">
+                    Esci
+                </button>
+            </div>
+        </header>
+
+        <div class="notebook-container">
+            <!-- Subject Tabs (Student View) -->
+            <div class="subject-tabs" id="studentSubjectTabs">
+                <!-- Le materie saranno caricate dinamicamente -->
+            </div>
+
+            <!-- Page Area (Student View) -->
+            <div class="page-area">
+                <div class="page-wrapper">
+                    <canvas id="studentCanvas" style="pointer-events: none;"></canvas>
+                    
+                    <!-- Zoom Controls -->
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" onclick="zoomOutStudent()">−</button>
+                        <span class="zoom-level" id="zoomLevelStudent">100%</span>
+                        <button class="zoom-btn" onclick="zoomInStudent()">+</button>
+                        <button class="zoom-btn" onclick="resetZoomStudent()">⟲</button>
+                    </div>
+
+                    <!-- Page Navigation -->
+                    <div class="page-nav">
+                        <button class="page-btn" onclick="previousPageStudent()" id="prevPageBtnStudent">◀</button>
+                        <span class="page-info" id="pageInfoStudent">Pagina 1 di 1</span>
+                        <button class="page-btn" onclick="nextPageStudent()" id="nextPageBtnStudent">▶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Aggiungi Studente -->
+    <div class="modal-overlay" id="addStudentModal">
+        <div class="modal">
+            <h2 style="margin-bottom: 1.5rem;">Aggiungi Nuovo Studente</h2>
+            <input type="email" id="newStudentEmail" class="modern-input" placeholder="Email dello studente" style="width: 100%; margin-bottom: 1rem;">
+            <input type="text" id="newStudentName" class="modern-input" placeholder="Nome e cognome" style="width: 100%; margin-bottom: 1.5rem;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeAddStudentModal()" style="padding: 10px 20px; border: 2px solid #ddd; background: white; border-radius: 25px; cursor: pointer;">Annulla</button>
+                <button onclick="addStudent()" style="padding: 10px 20px; background: var(--primary-green); color: white; border: none; border-radius: 25px; cursor: pointer;">Aggiungi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+    // === FUNZIONI LOGIN STUDENTI ===
+
+    function showStudentLogin() {
+        document.getElementById('tutorLogin').style.display = 'none';
+        document.getElementById('studentLogin').style.display = 'block';
+        
+        // Pre-compila email da vecchio formato invito se presente (backward compatibility)
+        const urlParams = new URLSearchParams(window.location.search);
+        const oldInvite = urlParams.get('invite');
+        if (oldInvite && !urlParams.get('invite_token')) {
+            try {
+                const inviteData = JSON.parse(atob(oldInvite));
+                document.getElementById('studentEmail').value = inviteData.email;
+            } catch (e) {
+                console.log('Old invite format not valid');
+            }
+        }
+    }
+
+    function showTutorLogin() {
+        document.getElementById('tutorLogin').style.display = 'block';
+        document.getElementById('studentLogin').style.display = 'none';
+    }
+
+    async function loginStudent() {
+        const email = document.getElementById('studentEmail').value.trim();
+        const password = document.getElementById('studentPassword').value.trim();
+        
+        if (!email || !password) {
+            alert('Inserisci email e password');
+            return;
+        }
+        
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+            
+            if (error) throw error;
+            
+            console.log('Login studente riuscito:', data);
+            // L'auth listener gestirà il resto
+            
+        } catch (error) {
+            console.error('Errore login studente:', error);
+            alert('Errore login: ' + error.message);
+        }
+    }
+    </script>
+</body>
+</html>
