@@ -36,7 +36,7 @@ async function loginWithGoogle(role) {
         // Determina l'URL di redirect basato sull'ambiente
         const redirectUrl = window.location.hostname === 'localhost' 
             ? 'http://localhost:8000'
-            : 'https://filippocfz.github.io/uptoten-notes';
+            : 'https://filippofiz.github.io/uptoten-notes';
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
