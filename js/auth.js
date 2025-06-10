@@ -19,7 +19,7 @@ function initializeSupabase() {
     }
 }
 
-// Aggiorna la funzione loginWithGoogle in auth.js
+// Funzione loginWithGoogle COMPLETA
 async function loginWithGoogle(role) {
     try {
         if (!supabase) {
@@ -33,15 +33,27 @@ async function loginWithGoogle(role) {
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<span class="loading-spinner"></span> Accesso in corso...';
 
-        // Determina l'URL di redirect basato sull'ambiente
-const redirectUrl = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8000'
-    : `https://${window.location.hostname}`;  // Dinamico per qualsiasi dominio
+        // Funzione per determinare l'URL di redirect
+        const getRedirectUrl = () => {
+            const hostname = window.location.hostname;
+            const pathname = window.location.pathname;
+            
+            if (hostname === 'localhost') {
+                return 'http://localhost:8000';
+            } else if (hostname === 'digitalboard.up2ten.it') {
+                return 'https://digitalboard.up2ten.it';
+            } else if (hostname === 'filippofiz.github.io') {
+                // Per GitHub Pages con sottocartelle
+                return 'https://filippofiz.github.io/uptoten-notes';
+            }
+            return window.location.origin;
+        };
 
+        // IMPORTANTE: Questa è la parte che mancava!
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: redirectUrl,  // URL esplicito
+                redirectTo: getRedirectUrl(),
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent',
