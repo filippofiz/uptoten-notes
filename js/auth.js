@@ -34,9 +34,9 @@ async function loginWithGoogle(role) {
         loginBtn.innerHTML = '<span class="loading-spinner"></span> Accesso in corso...';
 
         // Determina l'URL di redirect basato sull'ambiente
-        const redirectUrl = window.location.hostname === 'localhost' 
-            ? 'http://localhost:8000'
-            : 'https://filippofiz.github.io/uptoten-notes';
+const redirectUrl = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000'
+    : `https://${window.location.hostname}`;  // Dinamico per qualsiasi dominio
 
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
