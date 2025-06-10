@@ -1,6 +1,6 @@
 // Configurazione Supabase
-const SUPABASE_URL = 'https://cuuqdfrjqprdpvkyrvws.supabase.co';  // ← Questo deve essere il TUO URL Supabase, non localhost!
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dXFkZnJqcXByZHB2a3ZydndzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4NDk0ODAsImV4cCI6MjA2NDQyNTQ4MH0.72ZHZFBcU4h76bvFJRqYijcS_GeZCsbtQWnWutIgd8A';
+const SUPABASE_URL = 'https://hgbhkfcddkvgidtpejoe.supabase.co';  // ← Sostituisci con il tuo nuovo URL
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnYmhrZmNkZGt2Z2lkdHBlam9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1NDE1MTAsImV4cCI6MjA2NTExNzUxMH0.uiLHGf6rWNTChzGoMAzLNkO8B3ROT6hx1w5wl5TO584';  // ← Sostituisci con la tua nuova anon key
 
 // Variabili globali
 let supabase = null;
