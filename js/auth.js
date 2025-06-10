@@ -19,7 +19,7 @@ function initializeSupabase() {
     }
 }
 
-// Login con Google (solo per tutor)
+// Aggiorna la funzione loginWithGoogle in auth.js
 async function loginWithGoogle(role) {
     try {
         if (!supabase) {
@@ -33,10 +33,15 @@ async function loginWithGoogle(role) {
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<span class="loading-spinner"></span> Accesso in corso...';
 
+        // Determina l'URL di redirect basato sull'ambiente
+        const redirectUrl = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8000'
+            : 'https://filippocfz.github.io/uptoten-notes';
+
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.origin,
+                redirectTo: redirectUrl,  // URL esplicito
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent',
