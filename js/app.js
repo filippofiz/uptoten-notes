@@ -1,4 +1,4 @@
-// Gestione principale dell'applicazione - VERSIONE FINALE SICURA
+// Gestione principale dell'applicazione - VERSIONE PULITA
 
 // Array di colori predefiniti per le materie
 const SUBJECT_COLORS = [
@@ -115,6 +115,9 @@ async function addSubject() {
 }
 
 async function selectSubject(subjectId, event) {
+    // Rimuovi overlay se esiste
+    removeNoSubjectsOverlay();
+    
     if (event && event.target && event.target.classList.contains('delete-subject-btn')) {
         return;
     }
@@ -151,6 +154,11 @@ async function selectSubject(subjectId, event) {
         await loadStudentPages();
     } else {
         await loadSubjectPages();
+    }
+    
+    // Salva stato dopo selezione materia
+    if (!isStudent) {
+        saveAppState();
     }
     
     // Salva ultima materia selezionata (solo se funzione disponibile)
@@ -345,6 +353,9 @@ async function previousPage() {
             await loadPage(currentSubjectId, currentPage);
         }
         updatePageInfo();
+        
+        // Salva stato dopo cambio pagina
+        if (!isStudent) saveAppState();
     }
 }
 
@@ -361,6 +372,9 @@ async function nextPage() {
             await loadPage(currentSubjectId, currentPage);
         }
         updatePageInfo();
+        
+        // Salva stato dopo cambio pagina
+        if (!isStudent) saveAppState();
     }
 }
 
@@ -469,39 +483,23 @@ async function loadStudentSubjects() {
         // Se non ci sono materie, mostra messaggio informativo
         if (subjects.length === 0) {
             if (!isStudent) {
-                // Per il tutor: mostra messaggio nel canvas
+                // NUOVA IMPLEMENTAZIONE: usa overlay invece di scrivere nel canvas
                 if (canvas) {
                     canvas.clear();
-                    canvas.isDrawingMode = false; // Disabilita disegno
-                    
-                    // Rimuovi bordo colorato
-                    const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
-                    if (pageWrapper) {
-                        pageWrapper.classList.remove('subject-border');
-                    }
-                    
-                    const centerX = canvas.width / 2;
-                    const centerY = canvas.height / 2;
-                    
-                    const welcomeText = new fabric.Text('Nessuna materia per questo studente\n\nClicca + per aggiungere la prima materia', {
-                        left: centerX,
-                        top: centerY,
-                        originX: 'center',
-                        originY: 'center',
-                        fontSize: 20,
-                        fill: '#666',
-                        textAlign: 'center',
-                        selectable: false,
-                        evented: false
-                    });
-                    
-                    canvas.add(welcomeText);
-                    canvas.renderAll();
+                    canvas.isDrawingMode = false;
                 }
                 
-                showInfo('Clicca il bottone + per aggiungere la prima materia per questo studente');
+                // Rimuovi bordo colorato
+                const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
+                if (pageWrapper) {
+                    pageWrapper.classList.remove('subject-border');
+                }
+                
+                // Mostra overlay
+                showNoSubjectsOverlay();
+                
             } else {
-                // Per studenti senza materie
+                // Per studenti senza materie (questo rimane uguale)
                 const noSubjectsDiv = document.createElement('div');
                 noSubjectsDiv.style.cssText = `
                     padding: 20px; text-align: center; color: #666;
@@ -524,6 +522,9 @@ async function loadStudentSubjects() {
             currentSubjectId = null;
             return;
         }
+        
+        // IMPORTANTE: rimuovi overlay se c'è quando ci sono materie
+        removeNoSubjectsOverlay();
         
         // Crea le schede per ogni materia
         subjects.forEach((subject, index) => {
@@ -548,6 +549,68 @@ async function loadStudentSubjects() {
         
     } catch (error) {
         console.error('Errore caricamento materie:', error);
+    }
+}
+
+function showNoSubjectsOverlay() {
+    // Rimuovi overlay esistente se c'è
+    removeNoSubjectsOverlay();
+    
+    const pageArea = document.querySelector('#tutorApp .page-area');
+    if (!pageArea) return;
+    
+    // Aggiungi blur al canvas
+    const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
+    if (pageWrapper) {
+        pageWrapper.classList.add('blur-background');
+    }
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'noSubjectsOverlay';
+    overlay.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 255, 255, 0.95);
+        padding: 40px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        z-index: 100;
+        max-width: 400px;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 20px;">📚</div>
+        <h2 style="color: var(--primary-blue); margin-bottom: 15px;">
+            Nessuna materia per questo studente
+        </h2>
+        <p style="color: #666; font-size: 16px; margin-bottom: 25px;">
+            Inizia creando la prima materia per organizzare gli appunti
+        </p>
+        <button onclick="document.querySelector('.add-subject-tab').click()" 
+                style="padding: 12px 30px; background: var(--primary-green); 
+                       color: white; border: none; border-radius: 25px; 
+                       font-size: 16px; cursor: pointer; font-weight: 600;
+                       transition: all 0.3s;">
+            ➕ Aggiungi Prima Materia
+        </button>
+    `;
+    
+    pageArea.appendChild(overlay);
+}
+
+function removeNoSubjectsOverlay() {
+    const overlay = document.getElementById('noSubjectsOverlay');
+    if (overlay) {
+        overlay.remove();
+    }
+    
+    // Rimuovi blur dal canvas
+    const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
+    if (pageWrapper) {
+        pageWrapper.classList.remove('blur-background');
     }
 }
 
@@ -634,7 +697,7 @@ async function loadStudentSelector() {
         const selector = document.getElementById('studentSelector');
         selector.innerHTML = '<option value="">Seleziona studente...</option>';
         
-        // CORREZIONE: Logica corretta per mostrare gli studenti
+        // Mostra studenti in lista
         for (const student of students) {
             const option = document.createElement('option');
             option.value = student.id;
@@ -671,30 +734,86 @@ async function loadStudentSelector() {
             selector.appendChild(option);
         }
         
-        // Aggiorna il pulsante invito
-        updateInviteButton();
-        
         // Seleziona il primo se esiste
         if (students.length > 0) {
             selector.value = students[0].id;
             await selectStudent(students[0].id);
         } else {
             selector.style.display = 'none';
-            const inviteBtn = document.getElementById('inviteBtn');
-            if (inviteBtn) inviteBtn.style.display = 'none';
         }
         
         // Event listener per cambio studente
         selector.onchange = async (e) => {
             if (e.target.value) {
                 await selectStudent(e.target.value);
-                updateInviteButton();
             }
         };
         
     } catch (error) {
         console.error('Errore caricamento studenti:', error);
         showError('Errore nel caricamento degli studenti');
+    }
+}
+
+async function restoreAppState(savedState) {
+    try {
+        console.log('🔄 Ripristinando stato:', savedState);
+        
+        // 1. Ripristina studente selezionato
+        if (savedState.selectedStudentId) {
+            const selector = document.getElementById('studentSelector');
+            const option = selector.querySelector(`option[value="${savedState.selectedStudentId}"]`);
+            
+            if (option) {
+                selector.value = savedState.selectedStudentId;
+                await selectStudent(savedState.selectedStudentId);
+                console.log('✅ Studente ripristinato:', savedState.selectedStudentId);
+                
+                // 2. Ripristina materia selezionata
+                if (savedState.selectedSubjectId) {
+                    // Aspetta che le materie siano caricate
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                    
+                    const subjectTab = document.querySelector(`[data-subject-id="${savedState.selectedSubjectId}"]`);
+                    if (subjectTab) {
+                        await selectSubject(savedState.selectedSubjectId);
+                        console.log('✅ Materia ripristinata:', savedState.selectedSubjectId);
+                        
+                        // 3. Ripristina pagina corrente
+                        if (savedState.currentPage && savedState.currentPage > 1) {
+                            // Aspetta che la materia sia caricata
+                            await new Promise(resolve => setTimeout(resolve, 600));
+                            
+                            // Naviga alla pagina salvata
+                            const targetPage = Math.min(savedState.currentPage, totalPages);
+                            if (targetPage !== currentPage) {
+                                currentPage = targetPage;
+                                await loadPage(currentSubjectId, currentPage);
+                                updatePageInfo();
+                                console.log('✅ Pagina ripristinata:', targetPage);
+                            }
+                        }
+                        
+                        // Aspetta un po' prima di nascondere il loading
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        
+                    } else {
+                        console.log('⚠️ Materia non trovata:', savedState.selectedSubjectId);
+                    }
+                } else {
+                    console.log('⚠️ Nessuna materia da ripristinare');
+                }
+            } else {
+                console.log('⚠️ Studente non trovato:', savedState.selectedStudentId);
+                clearAppState();
+            }
+        }
+        
+        console.log('🎯 Ripristino stato completato');
+        
+    } catch (error) {
+        console.error('❌ Errore ripristino stato:', error);
+        clearAppState();
     }
 }
 
@@ -713,70 +832,16 @@ async function selectStudent(studentId) {
         currentStudent = student;
         console.log('Studente selezionato:', student);
         
-        // Aggiorna pulsante invito
-        updateInviteButton();
+        // Salva stato dopo selezione studente
+        saveAppState();
         
         // Carica materie
         await loadStudentSubjects();
-        
-        // Non fare nulla qui - il messaggio sarà gestito in loadStudentSubjects
         
     } catch (error) {
         console.error('Errore selezione studente:', error);
         showError('Errore nella selezione dello studente');
     }
-}
-
-// === GESTIONE PULSANTE INVITO ===
-function updateInviteButton() {
-    const selector = document.getElementById('studentSelector');
-    const inviteBtn = document.getElementById('inviteBtn');
-    
-    if (!inviteBtn) {
-        createInviteButton();
-        return;
-    }
-    
-    const selectedOption = selector.options[selector.selectedIndex];
-    
-    if (!selectedOption || !selectedOption.value) {
-        inviteBtn.style.display = 'none';
-        return;
-    }
-    
-    const isRegistered = selectedOption.dataset.registered === 'true';
-    inviteBtn.style.display = 'block';
-    
-    if (isRegistered) {
-        inviteBtn.innerHTML = '✅';
-        inviteBtn.title = 'Studente già registrato';
-        inviteBtn.style.background = '#28a745';
-        inviteBtn.onclick = () => showInfo('Questo studente è già registrato! ✅');
-    } else {
-        inviteBtn.innerHTML = '📧';
-        inviteBtn.title = 'Invia invito sicuro allo studente';
-        inviteBtn.style.background = '#ff9500';
-        inviteBtn.onclick = () => {
-            const studentData = JSON.parse(selectedOption.dataset.studentData);
-            showSecureInviteModal(studentData, currentProfile);
-        };
-    }
-}
-
-function createInviteButton() {
-    const container = document.querySelector('.header-left > div');
-    
-    const inviteBtn = document.createElement('button');
-    inviteBtn.id = 'inviteBtn';
-    inviteBtn.style.cssText = `
-        width: 35px; height: 35px; border-radius: 50%; 
-        color: white; border: none; cursor: pointer; 
-        font-size: 16px; margin-left: 5px;
-        transition: all 0.3s; display: none;
-    `;
-    
-    container.appendChild(inviteBtn);
-    updateInviteButton();
 }
 
 // === GESTIONE STUDENTI - MODAL ===
@@ -791,19 +856,6 @@ function closeAddStudentModal() {
     document.getElementById('addStudentModal').style.display = 'none';
 }
 
-// === SISTEMA INVITI SICURI ===
-
-// Genera token sicuro
-function generateSecureToken() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let token = '';
-    for (let i = 0; i < 32; i++) {
-        token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token + '_' + Date.now();
-}
-
-// AGGIUNTA STUDENTE SICURA
 async function addStudent() {
     const email = document.getElementById('newStudentEmail').value.trim();
     const name = document.getElementById('newStudentName').value.trim();
@@ -834,9 +886,9 @@ async function addStudent() {
             return;
         }
         
-        console.log('Creando studente e token sicuro...');
+        console.log('Creando studente...');
         
-        // 1. Crea studente
+        // Crea studente
         const { data: newStudent, error: studentError } = await supabase
             .from('students')
             .insert({
@@ -849,27 +901,7 @@ async function addStudent() {
         
         if (studentError) throw studentError;
         
-        // 2. Genera token sicuro
-        const secureToken = generateSecureToken();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // Scade in 7 giorni
-        
-        const { data: inviteToken, error: tokenError } = await supabase
-            .from('invitation_tokens')
-            .insert({
-                token: secureToken,
-                student_id: newStudent.id,
-                student_email: email,
-                student_name: name || null,
-                tutor_id: currentUser.id,
-                expires_at: expiresAt.toISOString()
-            })
-            .select()
-            .single();
-        
-        if (tokenError) throw tokenError;
-        
-        console.log('✅ Studente e token creati:', { student: newStudent, token: inviteToken });
+        console.log('✅ Studente creato:', newStudent);
         
         // Ricarica lista
         await loadStudentSelector();
@@ -880,7 +912,7 @@ async function addStudent() {
         }
         
         closeAddStudentModal();
-        alert(`✅ Studente ${name || email} aggiunto con successo!\n\nUsa il pulsante 📧 per generare il link di invito sicuro.`);
+        alert(`✅ Studente ${name || email} aggiunto con successo!`);
         
     } catch (error) {
         console.error('❌ Errore:', error);
@@ -888,191 +920,108 @@ async function addStudent() {
     }
 }
 
-// GENERA LINK SICURO
-async function generateSecureInviteLink(studentId) {
-    try {
-        // Recupera token esistente o crea nuovo
-        let { data: existingToken } = await supabase
-            .from('invitation_tokens')
-            .select('*')
-            .eq('student_id', studentId)
-            .is('used_at', null) // Non ancora usato
-            .gt('expires_at', new Date().toISOString()) // Non scaduto
-            .single();
+// === OVERLAY CARICAMENTO ===
+function showLoadingOverlay(message = "Caricamento in corso...") {
+    // Rimuovi overlay esistente se presente
+    hideLoadingOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(5px);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="width: 60px; height: 60px; margin: 0 auto 20px auto; position: relative;">
+                <div style="
+                    width: 60px; height: 60px; border: 4px solid #f3f3f3;
+                    border-top: 4px solid #4CAF50; border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                "></div>
+            </div>
+            <h3 style="color: #333; margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                ${message}
+            </h3>
+            <p style="color: #666; margin: 0; font-size: 14px;">
+                Un momento, stiamo preparando tutto...
+            </p>
+        </div>
         
-        if (!existingToken) {
-            // Crea nuovo token se non esiste o è scaduto
-            const student = await supabase
-                .from('students')
-                .select('*')
-                .eq('id', studentId)
-                .single();
-            
-            if (student.error) throw student.error;
-            
-            const secureToken = generateSecureToken();
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
-            
-            const { data: newToken, error } = await supabase
-                .from('invitation_tokens')
-                .insert({
-                    token: secureToken,
-                    student_id: studentId,
-                    student_email: student.data.email,
-                    student_name: student.data.class_name,
-                    tutor_id: currentUser.id,
-                    expires_at: expiresAt.toISOString()
-                })
-                .select()
-                .single();
-            
-            if (error) throw error;
-            existingToken = newToken;
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => overlay.remove(), 300);
+    }
+}
+
+// === GESTIONE STATO PERSISTENTE ===
+function saveAppState() {
+    if (isStudent) return;
+    
+    const state = {
+        selectedStudentId: currentStudent?.id || null,
+        selectedSubjectId: currentSubjectId || null,
+        currentPage: currentPage || 1,
+        timestamp: Date.now()
+    };
+    
+    localStorage.setItem('uptoten_app_state', JSON.stringify(state));
+    console.log('💾 Stato salvato:', state);
+}
+
+function loadAppState() {
+    if (isStudent) return null;
+    
+    try {
+        const saved = localStorage.getItem('uptoten_app_state');
+        if (!saved) return null;
+        
+        const state = JSON.parse(saved);
+        
+        // Verifica che non sia troppo vecchio (max 24 ore)
+        const maxAge = 24 * 60 * 60 * 1000; // 24 ore in millisecondi
+        if (Date.now() - state.timestamp > maxAge) {
+            localStorage.removeItem('uptoten_app_state');
+            return null;
         }
         
-        // Genera link sicuro
-        return `${window.location.origin}?invite_token=${existingToken.token}`;
-        
+        console.log('📥 Stato caricato:', state);
+        return state;
     } catch (error) {
-        console.error('Errore generazione link sicuro:', error);
-        throw error;
+        console.error('Errore caricamento stato:', error);
+        localStorage.removeItem('uptoten_app_state');
+        return null;
     }
 }
 
-// MOSTRA MODAL INVITO SICURO
-async function showSecureInviteModal(student, tutor) {
-    try {
-        const secureLink = await generateSecureInviteLink(student.id);
-        
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.style.display = 'flex';
-        modal.innerHTML = `
-            <div class="modal" style="max-width: 600px;">
-                <h2 style="color: var(--primary-green); margin-bottom: 1.5rem;">
-                    🔐 Invito Sicuro per ${student.class_name || student.email}
-                </h2>
-                
-                <div style="background: #f0f8ff; border: 2px solid #4CAF50; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 10px 0; color: #2196F3;">🛡️ Link Sicuro e Univoco</h3>
-                    <p style="margin: 0; color: #666; font-size: 14px;">
-                        ✅ Solo <strong>${student.email}</strong> può usare questo link<br>
-                        ✅ Scade automaticamente in 7 giorni<br>
-                        ✅ Utilizzabile una sola volta
-                    </p>
-                </div>
-                
-                <div style="position: relative; margin-bottom: 20px;">
-                    <input type="text" value="${secureLink}" readonly id="secureInviteLink"
-                           style="width: 100%; padding: 15px; border: 2px solid #4CAF50; border-radius: 10px; font-family: monospace; font-size: 11px; background: #f8f9fa;">
-                    <button onclick="copySecureInviteLink()" id="copySecureBtn"
-                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                        📋 Copia
-                    </button>
-                </div>
-                
-                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 10px 0; color: #856404;">📱 Istruzioni per ${student.class_name || 'lo studente'}:</h4>
-                    <ol style="margin: 0; color: #856404; font-size: 14px;">
-                        <li>Clicca sul link ricevuto (SOLO per ${student.email})</li>
-                        <li>Il sistema riconoscerà automaticamente i tuoi dati</li>
-                        <li>Inserisci solo la password per completare la registrazione</li>
-                        <li>Accedi e inizia a studiare!</li>
-                    </ol>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: space-between;">
-                    <button onclick="shareSecureViaEmail('${student.email}', '${encodeURIComponent(secureLink)}', '${student.class_name}', '${tutor.full_name}')"
-                            style="flex: 1; padding: 12px; background: #007bff; color: white; border: none; border-radius: 25px; cursor: pointer;">
-                        📧 Invia Email
-                    </button>
-                    <button onclick="shareSecureViaWhatsApp('${encodeURIComponent(secureLink)}', '${student.class_name}', '${tutor.full_name}')"
-                            style="flex: 1; padding: 12px; background: #25d366; color: white; border: none; border-radius: 25px; cursor: pointer;">
-                        📱 WhatsApp
-                    </button>
-                    <button onclick="this.parentElement.parentElement.parentElement.remove()" 
-                            style="flex: 1; padding: 12px; border: 2px solid #ddd; background: white; border-radius: 25px; cursor: pointer;">
-                        ✅ Fatto
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-    } catch (error) {
-        alert('Errore nella generazione del link sicuro: ' + error.message);
-    }
-}
-
-// FUNZIONI CONDIVISIONE
-function copySecureInviteLink() {
-    const input = document.getElementById('secureInviteLink');
-    const btn = document.getElementById('copySecureBtn');
-    
-    input.select();
-    navigator.clipboard.writeText(input.value).then(() => {
-        btn.textContent = '✅ Copiato!';
-        btn.style.background = '#28a745';
-        setTimeout(() => {
-            btn.textContent = '📋 Copia';
-            btn.style.background = '#4CAF50';
-        }, 2000);
-    });
-}
-
-function shareSecureViaEmail(studentEmail, secureLink, studentName, tutorName) {
-    const subject = `🔐 ${tutorName} ti ha invitato su UpToTen Notes (Link Sicuro)`;
-    const body = `Ciao ${studentName || 'studente'}!
-
-${tutorName} ti ha invitato a usare UpToTen Notes.
-
-🔐 LINK SICURO PERSONALE (solo per te):
-${decodeURIComponent(secureLink)}
-
-🛡️ IMPORTANTE:
-- Questo link funziona SOLO con la tua email: ${studentEmail}
-- È valido per 7 giorni
-- Può essere usato una sola volta
-
-📝 COSA FARE:
-1. Clicca il link sopra
-2. I tuoi dati saranno già compilati
-3. Scegli una password sicura
-4. Inizia a studiare!
-
-Ci vediamo su UpToTen Notes! 🎓
-
----
-Invito sicuro inviato tramite UpToTen Notes`;
-
-    const mailtoLink = `mailto:${studentEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(mailtoLink);
-}
-
-function shareSecureViaWhatsApp(secureLink, studentName, tutorName) {
-    const message = `🎓 Ciao ${studentName || 'studente'}!
-
-${tutorName} ti ha invitato su *UpToTen Notes*!
-
-🔐 *LINK SICURO PERSONALE:*
-${decodeURIComponent(secureLink)}
-
-🛡️ *SICUREZZA:*
-• Link valido solo per 7 giorni
-• Utilizzabile una sola volta
-• I tuoi dati sono già compilati
-
-📱 *FACILISSIMO:*
-1. Clicca il link
-2. Scegli password
-3. Inizia a studiare!
-
-Ci vediamo online! 📚✨`;
-
-    const whatsappLink = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappLink, '_blank');
+function clearAppState() {
+    localStorage.removeItem('uptoten_app_state');
+    console.log('🗑️ Stato cancellato');
 }
 
 // === INIZIALIZZAZIONE TUTOR ===
@@ -1091,20 +1040,29 @@ window.initTutorApp = async function() {
         avatarEl.textContent = getInitials(currentProfile.full_name);
     }
     
+    // Carica stato precedente
+    const savedState = loadAppState();
+    
+    // Se c'è uno stato da ripristinare, mostra loading
+    if (savedState && savedState.selectedStudentId) {
+        showLoadingOverlay("Ripristinando la tua sessione...");
+    }
+    
     // Carica lista studenti
     await loadStudentSelector();
     
-    // Crea il pulsante invito se non esiste
-    setTimeout(() => {
-        if (!document.getElementById('inviteBtn')) {
-            createInviteButton();
-        }
-    }, 100);
+    // Ripristina stato se disponibile
+    if (savedState && savedState.selectedStudentId) {
+        await restoreAppState(savedState);
+        // Nascondi loading dopo ripristino
+        hideLoadingOverlay();
+    }
     
     // Inizializza canvas
     setTimeout(() => {
         initializeCanvas();
-        showInfoMessage();
+        // Mostra messaggio info solo se non abbiamo ripristinato uno stato
+        if (!savedState) showInfoMessage();
     }, 200);
 }
 
@@ -1115,7 +1073,6 @@ function showInfoMessage() {
     message.innerHTML = `
         <strong>✨ UpToTen Notes</strong><br>
         • Usa <strong>+</strong> per aggiungere studenti e materie<br>
-        • Usa <strong>📧</strong> per inviare inviti sicuri<br>
         • <strong>Doppio click</strong> per rinominare materie<br>
         • Tutto si salva automaticamente
     `;
@@ -1176,7 +1133,22 @@ window.addEventListener('beforeunload', async (e) => {
     if (!isStudent && canvas && currentSubjectId) {
         await saveCurrentPage();
         stopAutoSave();
+        saveAppState(); // Salva stato prima di chiudere
     }
 });
 
-console.log('🔐 App.js sicuro caricato - Sistema inviti protetto attivo!');
+// Salva stato anche quando la finestra perde il focus
+window.addEventListener('blur', () => {
+    if (!isStudent) {
+        saveAppState();
+    }
+});
+
+// Salva stato periodicamente (ogni 30 secondi)
+if (!isStudent) {
+    setInterval(() => {
+        saveAppState();
+    }, 30000);
+}
+
+console.log('📝 App.js caricato - Gestione principale attiva!');
