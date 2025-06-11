@@ -47,6 +47,7 @@ function debouncedSave() {
     }, 2000); // Salva dopo 2 secondi di inattività
 }
 // Inizializza canvas per tutor
+// Inizializza canvas per tutor
 function initializeCanvas() {
     const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
     if (!pageWrapper) return;
@@ -91,6 +92,44 @@ function initializeCanvas() {
             saveToUndoStack();
             debouncedSave();
         });
+        
+        // NUOVO: Previeni la selezione delle linee di sfondo
+        canvas.on('selection:created', function(e) {
+            if (e.selected && e.selected.length > 0) {
+                const selectedObjects = e.selected.filter(obj => !obj.isBackground);
+                if (selectedObjects.length === 0) {
+                    canvas.discardActiveObject();
+                } else if (selectedObjects.length < e.selected.length) {
+                    canvas.setActiveObject(new fabric.ActiveSelection(selectedObjects, {
+                        canvas: canvas
+                    }));
+                    canvas.renderAll();
+                }
+            }
+        });
+        
+        // NUOVO: Previeni che la gomma cancelli le linee di sfondo
+        canvas.on('before:path:created', function(e) {
+            if (currentTool === 'eraser') {
+                // La gomma non dovrebbe toccare le linee di sfondo
+                canvas.getObjects().forEach(obj => {
+                    if (obj.isBackground) {
+                        canvas.sendToBack(obj);
+                    }
+                });
+            }
+        });
+        
+        // NUOVO: Protezione extra per impedire cancellazione linee sfondo
+        canvas.on('path:created', function(e) {
+            if (currentTool === 'eraser' && e.path) {
+                // Assicurati che le linee di sfondo rimangano in fondo
+                backgroundLines.forEach(line => {
+                    canvas.sendToBack(line);
+                });
+            }
+        });
+        
     } else {
         canvas.setDimensions({
             width: width,
@@ -101,7 +140,6 @@ function initializeCanvas() {
     drawBackground();
     setTimeout(() => saveToUndoStack(), 200);
 }
-
 // Inizializza canvas per studente (solo lettura)
 function initializeStudentCanvas() {
     const pageWrapper = document.querySelector('#studentApp .page-wrapper');
@@ -140,15 +178,24 @@ function drawBackground() {
 
     switch(currentBackground) {
         case 'lines':
-            // Righe orizzontali - ESTENDI OLTRE IL BORDO
+            // Righe orizzontali
             const lineSpacing = 30;
             for (let i = lineSpacing; i < height; i += lineSpacing) {
-                const line = new fabric.Line([0, i, width + 10, i], { // +10 per sicurezza
+                const line = new fabric.Line([0, i, width + 10, i], {
                     stroke: '#e0e0e0',
                     strokeWidth: 1,
                     selectable: false,
                     evented: false,
-                    excludeFromExport: true
+                    excludeFromExport: true,
+                    // NUOVO: Proprietà aggiuntive per protezione totale
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    isBackground: true // Flag custom per identificarle
                 });
                 canvas.add(line);
                 canvas.sendToBack(line);
@@ -159,27 +206,43 @@ function drawBackground() {
         case 'grid-small':
             // Griglia piccola (10px)
             const smallGrid = 10;
-            // Linee verticali - parti da prima e vai oltre
+            // Linee verticali
             for (let i = 0; i <= width + smallGrid; i += smallGrid) {
                 const vLine = new fabric.Line([i, 0, i, height + 10], {
                     stroke: '#f0f0f0',
                     strokeWidth: 0.5,
                     selectable: false,
                     evented: false,
-                    excludeFromExport: true
+                    excludeFromExport: true,
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    isBackground: true
                 });
                 canvas.add(vLine);
                 canvas.sendToBack(vLine);
                 backgroundLines.push(vLine);
             }
-            // Linee orizzontali - estendi ben oltre
+            // Linee orizzontali
             for (let i = 0; i <= height + smallGrid; i += smallGrid) {
                 const hLine = new fabric.Line([0, i, width + 10, i], {
                     stroke: '#f0f0f0',
                     strokeWidth: 0.5,
                     selectable: false,
                     evented: false,
-                    excludeFromExport: true
+                    excludeFromExport: true,
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    isBackground: true
                 });
                 canvas.add(hLine);
                 canvas.sendToBack(hLine);
@@ -190,27 +253,43 @@ function drawBackground() {
         case 'grid-large':
             // Griglia grande (20px)
             const largeGrid = 20;
-            // Linee verticali - assicurati di coprire tutto
+            // Linee verticali
             for (let i = 0; i <= width + largeGrid; i += largeGrid) {
                 const vLine = new fabric.Line([i, 0, i, height + 10], {
                     stroke: '#e0e0e0',
                     strokeWidth: 1,
                     selectable: false,
                     evented: false,
-                    excludeFromExport: true
+                    excludeFromExport: true,
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    isBackground: true
                 });
                 canvas.add(vLine);
                 canvas.sendToBack(vLine);
                 backgroundLines.push(vLine);
             }
-            // Linee orizzontali - estendi oltre
+            // Linee orizzontali
             for (let i = 0; i <= height + largeGrid; i += largeGrid) {
                 const hLine = new fabric.Line([0, i, width + 10, i], {
                     stroke: '#e0e0e0',
                     strokeWidth: 1,
                     selectable: false,
                     evented: false,
-                    excludeFromExport: true
+                    excludeFromExport: true,
+                    hasControls: false,
+                    hasBorders: false,
+                    lockMovementX: true,
+                    lockMovementY: true,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    isBackground: true
                 });
                 canvas.add(hLine);
                 canvas.sendToBack(hLine);
