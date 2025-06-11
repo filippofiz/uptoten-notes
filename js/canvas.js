@@ -13,7 +13,39 @@ let undoStack = [];
 let redoStack = [];
 let zoomLevel = 100;
 let studentZoomLevel = 100;
+let isLoadingPage = false; // Flag per evitare salvataggi durante il caricamento
 
+// Debounce per auto-save - DEVE ESSERE PRIMA DI initializeCanvas!
+
+let saveTimeout;
+function debouncedSave() {
+    if (isStudent) return;
+    
+    // NUOVO: Non salvare se l'app non è completamente caricata
+    if (!window.appFullyLoaded) {
+        console.log('⏳ App non ancora pronta, salvataggio annullato');
+        return;
+    }
+    
+    if (!currentSubjectId) {
+        console.log('⚠️ Nessuna materia selezionata, salvataggio annullato');
+        return;
+    }
+    
+    // NON salvare se stiamo caricando una pagina
+    if (isLoadingPage) {
+        console.log('⚠️ Caricamento in corso, salvataggio annullato');
+        return;
+    }
+    
+    clearTimeout(saveTimeout);
+    updateSyncStatus('syncing');
+    
+    saveTimeout = setTimeout(async () => {
+        console.log('🔄 Auto-save in corso...');
+        await saveCurrentPage();
+    }, 2000); // Salva dopo 2 secondi di inattività
+}
 // Inizializza canvas per tutor
 function initializeCanvas() {
     const pageWrapper = document.querySelector('#tutorApp .page-wrapper');

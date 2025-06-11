@@ -320,37 +320,111 @@ async function savePage(pageNumber, canvasData, backgroundType) {
     try {
         await waitForSupabase();
         
-        if (!currentSubjectId) return;
+        // 1. CATTURA TUTTO SUBITO (non usare variabili globali dopo)
+        const saveData = {
+            subjectId: currentSubjectId,
+            studentId: currentStudent?.id,
+            pageNum: pageNumber,
+            canvasStr: typeof canvasData === 'object' ? JSON.stringify(canvasData) : canvasData,
+            background: backgroundType,
+            timestamp: Date.now()
+        };
+        
+        // 2. VALIDAZIONE TOTALE
+        if (!saveData.subjectId || !saveData.studentId || !saveData.canvasStr) {
+            console.error('❌ Dati incompleti, salvataggio annullato');
+            return null;
+        }
+        
+        // 3. LOCK DI SICUREZZA - previeni salvataggi simultanei
+        if (window.savingInProgress) {
+            console.warn('⏳ Salvataggio già in corso, annullato');
+            return null;
+        }
+        window.savingInProgress = true;
         
         updateSyncStatus('syncing');
         
-        const pageData = {
-            subject_id: currentSubjectId,
-            page_number: pageNumber,
-            canvas_data: canvasData,
-            background_type: backgroundType
-        };
+        try {
+            // 4. VERIFICA DOPPIA che la materia sia dello studente
+            const { data: verify, error: verifyError } = await supabase
+                .from('subjects')
+                .select('id, name, student_id')
+                .eq('id', saveData.subjectId)
+                .single();
+            
+            if (verifyError || !verify || verify.student_id !== saveData.studentId) {
+                console.error('❌ Materia non valida o non dello studente');
+                return null;
+            }
+            
+            console.log('✅ Salvataggio verificato per:', verify.name, 'Pagina:', saveData.pageNum);
+            
+            // 5. CERCA LA PAGINA SPECIFICA (no upsert!)
+            const { data: existing } = await supabase
+                .from('pages')
+                .select('id, canvas_data')
+                .eq('subject_id', saveData.subjectId)
+                .eq('page_number', saveData.pageNum)
+                .maybeSingle();
+            
+            let result;
+            
+            if (existing) {
+                // 6. UPDATE SOLO SE DIVERSO
+                if (existing.canvas_data === saveData.canvasStr) {
+                    console.log('↔️ Contenuto identico, skip salvataggio');
+                    return existing;
+                }
+                
+                const { data, error } = await supabase
+                    .from('pages')
+                    .update({
+                        canvas_data: saveData.canvasStr,
+                        background_type: saveData.background,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id)
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                result = data;
+                console.log('📝 Pagina aggiornata');
+                
+            } else {
+                // 7. INSERT NUOVO con tutti i campi espliciti
+                const { data, error } = await supabase
+                    .from('pages')
+                    .insert({
+                        subject_id: saveData.subjectId,
+                        page_number: saveData.pageNum,
+                        canvas_data: saveData.canvasStr,
+                        background_type: saveData.background
+                    })
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                result = data;
+                console.log('📄 Nuova pagina creata');
+            }
+            
+            updateSyncStatus('synced');
+            return result;
+            
+        } finally {
+            // 8. SEMPRE rilascia il lock
+            window.savingInProgress = false;
+        }
         
-        // Usa upsert per creare o aggiornare
-        const { data, error } = await supabase
-            .from('pages')
-            .upsert(pageData, {
-                onConflict: 'subject_id,page_number'
-            })
-            .select()
-            .single();
-        
-        if (error) throw error;
-        
-        updateSyncStatus('synced');
-        return data;
     } catch (error) {
-        console.error('Errore salvataggio pagina:', error);
+        console.error('❌ Errore critico salvataggio:', error);
         updateSyncStatus('error');
+        window.savingInProgress = false;
         return null;
     }
 }
-
 async function loadPageFromDB(subjectId, pageNumber) {
     try {
         await waitForSupabase();

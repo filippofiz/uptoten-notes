@@ -16,6 +16,9 @@ const SUBJECT_COLORS = [
     '#30336B'  // Blu scuro
 ];
 
+// Flag globale per bloccare QUALSIASI operazione durante il caricamento iniziale
+window.appFullyLoaded = false;
+
 // Funzione per ottenere un colore unico per la materia
 function getUniqueColor(existingColors) {
     // Trova il primo colore non utilizzato
@@ -122,10 +125,19 @@ async function selectSubject(subjectId, event) {
         return;
     }
     
+    // NUOVO: Disabilita tutti i tab durante il cambio
+    document.querySelectorAll('.subject-tab').forEach(tab => {
+        tab.style.pointerEvents = 'none';
+        tab.style.opacity = '0.7';
+    });
+    
     // Salva pagina corrente prima di cambiare
     if (canvas && currentSubjectId && !isStudent) {
         await saveCurrentPage();
     }
+    
+    // NUOVO: Delay di sicurezza
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     currentSubjectId = subjectId;
     
@@ -155,6 +167,12 @@ async function selectSubject(subjectId, event) {
     } else {
         await loadSubjectPages();
     }
+    
+    // NUOVO: Riabilita i tab dopo il caricamento
+    document.querySelectorAll('.subject-tab').forEach(tab => {
+        tab.style.pointerEvents = '';
+        tab.style.opacity = '';
+    });
     
     // Salva stato dopo selezione materia
     if (!isStudent) {
@@ -285,9 +303,19 @@ async function loadSubjectPages() {
 async function loadPage(subjectId, pageNumber) {
     if (!canvas) return;
     
-    // Assicurati che il canvas sia abilitato per il disegno
-    canvas.isDrawingMode = true;
+    // NUOVO: Verifica che sia la materia giusta
+    if (subjectId !== currentSubjectId) {
+        console.error('❌ Caricamento bloccato: materia diversa');
+        return;
+    }
     
+    // Imposta flag per evitare salvataggi durante il caricamento
+    isLoadingPage = true;
+    
+    // NUOVO: Disabilita il canvas durante il caricamento
+    canvas.isDrawingMode = false;
+    
+    // Assicurati che il canvas sia abilitato per il disegno
     const page = await loadPageFromDB(subjectId, pageNumber);
     
     if (page) {
@@ -307,12 +335,23 @@ async function loadPage(subjectId, pageNumber) {
         canvas.loadFromJSON(page.canvas_data, () => {
             drawBackground();
             canvas.renderAll();
+            // Reset flag dopo il caricamento
+            setTimeout(() => {
+                isLoadingPage = false;
+                canvas.isDrawingMode = true; // Riabilita solo dopo
+                console.log('✅ Caricamento completato, salvataggio riabilitato');
+            }, 500);
         });
     } else {
         // Nuova pagina vuota
         canvas.clear();
         currentBackground = 'lines';
         drawBackground();
+        // Reset flag
+        setTimeout(() => {
+            isLoadingPage = false;
+            canvas.isDrawingMode = true; // Riabilita solo dopo
+        }, 500);
     }
     
     // Reset undo/redo per la nuova pagina
@@ -396,34 +435,61 @@ async function nextPageStudent() {
 }
 
 async function saveCurrentPage() {
-    if (!canvas || !currentSubjectId || isStudent) return;
+    console.log('📄 saveCurrentPage chiamata');
     
-    const canvasData = canvas.toJSON(['excludeFromExport']);
-    await savePage(currentPage, canvasData, currentBackground);
+    // NUOVO: Blocco totale se app non pronta
+    if (!window.appFullyLoaded) {
+        console.log('⏳ App non pronta, salvataggio bloccato');
+        return;
+    }
     
-    // Feedback visivo
-    const btn = document.querySelector('.tool-btn[onclick="saveCurrentPage()"]');
-    if (btn) {
-        btn.innerHTML = '💾<span class="tooltip">Salvato!</span>';
-        setTimeout(() => {
-            btn.innerHTML = '💾<span class="tooltip">Salva</span>';
-        }, 1000);
+    if (!canvas || !currentSubjectId || isStudent) {
+        console.log('⚠️ Condizioni non soddisfatte per salvare:', {
+            canvas: !!canvas,
+            currentSubjectId: currentSubjectId,
+            isStudent: isStudent
+        });
+        return;
+    }
+    
+    try {
+        const canvasData = canvas.toJSON(['excludeFromExport']);
+        
+        // Filtra solo oggetti reali (no background lines)
+        const realObjects = canvasData.objects.filter(obj => !obj.excludeFromExport);
+        console.log('📄 Numero oggetti reali nel canvas:', realObjects.length);
+        
+        // NON salvare se è la prima volta e il canvas è vuoto
+        if (realObjects.length === 0 && currentPage === 1) {
+            const existingPage = await loadPageFromDB(currentSubjectId, currentPage);
+            if (existingPage && existingPage.canvas_data) {
+                console.log('⚠️ Canvas vuoto ma esiste già contenuto, salvataggio annullato per evitare sovrascrittura');
+                return;
+            }
+        }
+        
+        console.log('📄 Salvando pagina', currentPage, 'della materia', currentSubjectId);
+        
+        const saved = await savePage(currentPage, canvasData, currentBackground);
+        
+        if (saved) {
+            console.log('✅ Pagina salvata con successo, ID:', saved.id);
+            // Feedback visivo
+            const btn = document.querySelector('.tool-btn[onclick="saveCurrentPage()"]');
+            if (btn) {
+                btn.innerHTML = '✅<span class="tooltip">Salvato!</span>';
+                setTimeout(() => {
+                    btn.innerHTML = '💾<span class="tooltip">Salva</span>';
+                }, 1000);
+            }
+        } else {
+            console.error('❌ Salvataggio fallito - savePage ha restituito null');
+        }
+    } catch (error) {
+        console.error('❌ Errore durante il salvataggio:', error);
+        showError('Errore nel salvataggio della pagina');
     }
 }
-
-// Debounce per auto-save
-let saveTimeout;
-function debouncedSave() {
-    if (isStudent) return;
-    
-    clearTimeout(saveTimeout);
-    updateSyncStatus('syncing');
-    
-    saveTimeout = setTimeout(async () => {
-        await saveCurrentPage();
-    }, 2000); // Salva dopo 2 secondi di inattività
-}
-
 function updatePageInfo() {
     const pageInfoEl = document.getElementById(isStudent ? 'pageInfoStudent' : 'pageInfo');
     const prevBtn = document.getElementById(isStudent ? 'prevPageBtnStudent' : 'prevPageBtn');
@@ -821,6 +887,30 @@ async function selectStudent(studentId) {
     try {
         await waitForSupabase();
         
+        // NUOVO: Disabilita il selector durante il cambio
+        const selector = document.getElementById('studentSelector');
+        selector.disabled = true;
+        
+        // NUOVO: Ferma qualsiasi salvataggio in corso
+        if (saveTimeout) {
+            clearTimeout(saveTimeout);
+            console.log('⚠️ Salvataggio annullato per cambio studente');
+        }
+        
+        // NUOVO: Pulisci il canvas PRIMA di cambiare studente
+        if (canvas) {
+            canvas.clear();
+            canvas.isDrawingMode = false;
+        }
+        
+        // NUOVO: Reset variabili globali
+        currentSubjectId = null;
+        currentPage = 1;
+        totalPages = 1;
+        
+        // NUOVO: Delay di sicurezza
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const { data: student, error } = await supabase
             .from('students')
             .select('*')
@@ -838,12 +928,16 @@ async function selectStudent(studentId) {
         // Carica materie
         await loadStudentSubjects();
         
+        // NUOVO: Riabilita il selector
+        selector.disabled = false;
+        
     } catch (error) {
         console.error('Errore selezione studente:', error);
         showError('Errore nella selezione dello studente');
+        // Riabilita in caso di errore
+        document.getElementById('studentSelector').disabled = false;
     }
 }
-
 // === GESTIONE STUDENTI - MODAL ===
 function showAddStudentModal() {
     document.getElementById('addStudentModal').style.display = 'flex';
@@ -1025,7 +1119,12 @@ function clearAppState() {
 }
 
 // === INIZIALIZZAZIONE TUTOR ===
+// === INIZIALIZZAZIONE TUTOR ===
 window.initTutorApp = async function() {
+    // BLOCCA TUTTO
+    window.appFullyLoaded = false;
+    window.isLoadingPage = true;
+    
     document.getElementById('tutorApp').style.display = 'block';
     isStudent = false;
     
@@ -1040,13 +1139,19 @@ window.initTutorApp = async function() {
         avatarEl.textContent = getInitials(currentProfile.full_name);
     }
     
+    // IMPORTANTE: Inizializza canvas PRIMA di caricare i dati
+    initializeCanvas();
+    
+    // Aspetta che il canvas sia pronto
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     // Carica stato precedente
     const savedState = loadAppState();
     
-    // Se c'è uno stato da ripristinare, mostra loading
-    if (savedState && savedState.selectedStudentId) {
-        showLoadingOverlay("Ripristinando la tua sessione...");
-    }
+    // RIMOSSO: Il loading overlay rallentava tutto
+    // if (savedState && savedState.selectedStudentId) {
+    //     showLoadingOverlay("Ripristinando la tua sessione...");
+    // }
     
     // Carica lista studenti
     await loadStudentSelector();
@@ -1054,18 +1159,21 @@ window.initTutorApp = async function() {
     // Ripristina stato se disponibile
     if (savedState && savedState.selectedStudentId) {
         await restoreAppState(savedState);
-        // Nascondi loading dopo ripristino
-        hideLoadingOverlay();
+        // RIMOSSO: hideLoadingOverlay();
     }
     
-    // Inizializza canvas
+    // Mostra messaggio info solo se non abbiamo ripristinato uno stato
+    if (!savedState) {
+        showInfoMessage();
+    }
+    
+    // ALLA FINE, dopo che TUTTO è caricato:
     setTimeout(() => {
-        initializeCanvas();
-        // Mostra messaggio info solo se non abbiamo ripristinato uno stato
-        if (!savedState) showInfoMessage();
-    }, 200);
+        window.appFullyLoaded = true;
+        window.isLoadingPage = false;
+        console.log('✅ App completamente caricata e pronta');
+    }, 2000); // Aspetta 2 secondi per sicurezza
 }
-
 // === MESSAGGI E HELPER ===
 function showInfoMessage() {
     const message = document.createElement('div');
@@ -1149,6 +1257,39 @@ if (!isStudent) {
     setInterval(() => {
         saveAppState();
     }, 30000);
+}
+
+// Funzione di test per debug
+window.testSave = async function() {
+    console.log('🧪 TEST SALVATAGGIO MANUALE');
+    console.log('- canvas:', !!canvas);
+    console.log('- currentSubjectId:', currentSubjectId);
+    console.log('- currentStudent:', currentStudent);
+    console.log('- isStudent:', isStudent);
+    console.log('- currentPage:', currentPage);
+    
+    if (!canvas || !currentSubjectId) {
+        alert('Canvas o materia non disponibili!');
+        return;
+    }
+    
+    try {
+        const canvasData = canvas.toJSON(['excludeFromExport']);
+        console.log('- Canvas data size:', JSON.stringify(canvasData).length);
+        console.log('- Oggetti nel canvas:', canvasData.objects.length);
+        
+        const result = await savePage(currentPage, canvasData, currentBackground);
+        console.log('🧪 Risultato salvataggio:', result);
+        
+        if (result) {
+            alert('✅ Salvataggio test riuscito! ID: ' + result.id);
+        } else {
+            alert('❌ Salvataggio test fallito!');
+        }
+    } catch (error) {
+        console.error('🧪 Errore test:', error);
+        alert('❌ Errore: ' + error.message);
+    }
 }
 
 console.log('📝 App.js caricato - Gestione principale attiva!');
