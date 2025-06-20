@@ -1,4 +1,4 @@
-// Gestione Canvas e strumenti di disegno
+// Gestione Canvas e strumenti di disegno - VERSIONE SEMPLIFICATA CON CSS PATTERN
 
 // Variabili globali del canvas
 let canvas = null;
@@ -8,20 +8,17 @@ let currentColor = '#000000';
 let currentPage = 1;
 let totalPages = 1;
 let currentBackground = 'lines';
-let backgroundLines = [];
 let undoStack = [];
 let redoStack = [];
 let zoomLevel = 100;
 let studentZoomLevel = 100;
-let isLoadingPage = false; // Flag per evitare salvataggi durante il caricamento
+let isLoadingPage = false;
 
-// Debounce per auto-save - DEVE ESSERE PRIMA DI initializeCanvas!
-
+// Debounce per auto-save
 let saveTimeout;
 function debouncedSave() {
     if (isStudent) return;
     
-    // NUOVO: Non salvare se l'app non è completamente caricata
     if (!window.appFullyLoaded) {
         console.log('⏳ App non ancora pronta, salvataggio annullato');
         return;
@@ -32,7 +29,6 @@ function debouncedSave() {
         return;
     }
     
-    // NON salvare se stiamo caricando una pagina
     if (isLoadingPage) {
         console.log('⚠️ Caricamento in corso, salvataggio annullato');
         return;
@@ -44,9 +40,9 @@ function debouncedSave() {
     saveTimeout = setTimeout(async () => {
         console.log('🔄 Auto-save in corso...');
         await saveCurrentPage();
-    }, 2000); // Salva dopo 2 secondi di inattività
+    }, 2000);
 }
-// Inizializza canvas per tutor
+
 // Inizializza canvas per tutor
 function initializeCanvas() {
     const pageWrapper = document.querySelector('#tutorApp .page-wrapper');
@@ -59,7 +55,7 @@ function initializeCanvas() {
         canvas = new fabric.Canvas('noteCanvas', {
             width: width,
             height: height,
-            backgroundColor: 'transparent'
+            backgroundColor: 'transparent' // Trasparente per mostrare il CSS pattern
         });
         
         // Enable drawing solo se c'è una materia selezionata
@@ -75,7 +71,7 @@ function initializeCanvas() {
         });
 
         canvas.on('object:added', function(e) {
-            if (e.target && !backgroundLines.includes(e.target) && !e.target.excludeFromExport) {
+            if (e.target) {
                 setTimeout(() => {
                     saveToUndoStack();
                     debouncedSave();
@@ -93,43 +89,6 @@ function initializeCanvas() {
             debouncedSave();
         });
         
-        // NUOVO: Previeni la selezione delle linee di sfondo
-        canvas.on('selection:created', function(e) {
-            if (e.selected && e.selected.length > 0) {
-                const selectedObjects = e.selected.filter(obj => !obj.isBackground);
-                if (selectedObjects.length === 0) {
-                    canvas.discardActiveObject();
-                } else if (selectedObjects.length < e.selected.length) {
-                    canvas.setActiveObject(new fabric.ActiveSelection(selectedObjects, {
-                        canvas: canvas
-                    }));
-                    canvas.renderAll();
-                }
-            }
-        });
-        
-        // NUOVO: Previeni che la gomma cancelli le linee di sfondo
-        canvas.on('before:path:created', function(e) {
-            if (currentTool === 'eraser') {
-                // La gomma non dovrebbe toccare le linee di sfondo
-                canvas.getObjects().forEach(obj => {
-                    if (obj.isBackground) {
-                        canvas.sendToBack(obj);
-                    }
-                });
-            }
-        });
-        
-        // NUOVO: Protezione extra per impedire cancellazione linee sfondo
-        canvas.on('path:created', function(e) {
-            if (currentTool === 'eraser' && e.path) {
-                // Assicurati che le linee di sfondo rimangano in fondo
-                backgroundLines.forEach(line => {
-                    canvas.sendToBack(line);
-                });
-            }
-        });
-        
     } else {
         canvas.setDimensions({
             width: width,
@@ -137,9 +96,36 @@ function initializeCanvas() {
         });
     }
 
-    drawBackground();
+    // Applica lo sfondo CSS
+    applyBackgroundPattern();
     setTimeout(() => saveToUndoStack(), 200);
 }
+
+// NUOVO: Applica pattern CSS invece di disegnare linee
+function applyBackgroundPattern() {
+    const pageWrapper = document.querySelector(isStudent ? '#studentApp .page-wrapper' : '#tutorApp .page-wrapper');
+    if (!pageWrapper) return;
+    
+    // Rimuovi tutte le classi di sfondo
+    pageWrapper.classList.remove('bg-lines', 'bg-grid-small', 'bg-grid-large');
+    
+    // Aggiungi la classe appropriata
+    switch(currentBackground) {
+        case 'lines':
+            pageWrapper.classList.add('bg-lines');
+            break;
+        case 'grid-small':
+            pageWrapper.classList.add('bg-grid-small');
+            break;
+        case 'grid-large':
+            pageWrapper.classList.add('bg-grid-large');
+            break;
+        case 'none':
+            // Nessuna classe, sfondo pulito
+            break;
+    }
+}
+
 // Inizializza canvas per studente (solo lettura)
 function initializeStudentCanvas() {
     const pageWrapper = document.querySelector('#studentApp .page-wrapper');
@@ -160,149 +146,9 @@ function initializeStudentCanvas() {
             height: height
         });
     }
-}
-
-// Sostituisci la funzione drawBackground nel file canvas.js con questa versione
-
-// Versione finale per eliminare completamente il margine destro
-
-function drawBackground() {
-    if (!canvas) return;
     
-    // Rimuovi vecchie linee di sfondo
-    backgroundLines.forEach(line => canvas.remove(line));
-    backgroundLines = [];
-
-    const width = canvas.width;
-    const height = canvas.height;
-
-    switch(currentBackground) {
-        case 'lines':
-            // Righe orizzontali
-            const lineSpacing = 30;
-            for (let i = lineSpacing; i < height; i += lineSpacing) {
-                const line = new fabric.Line([0, i, width + 10, i], {
-                    stroke: '#e0e0e0',
-                    strokeWidth: 1,
-                    selectable: false,
-                    evented: false,
-                    excludeFromExport: true,
-                    // NUOVO: Proprietà aggiuntive per protezione totale
-                    hasControls: false,
-                    hasBorders: false,
-                    lockMovementX: true,
-                    lockMovementY: true,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    isBackground: true // Flag custom per identificarle
-                });
-                canvas.add(line);
-                canvas.sendToBack(line);
-                backgroundLines.push(line);
-            }
-            break;
-
-        case 'grid-small':
-            // Griglia piccola (10px)
-            const smallGrid = 10;
-            // Linee verticali
-            for (let i = 0; i <= width + smallGrid; i += smallGrid) {
-                const vLine = new fabric.Line([i, 0, i, height + 10], {
-                    stroke: '#f0f0f0',
-                    strokeWidth: 0.5,
-                    selectable: false,
-                    evented: false,
-                    excludeFromExport: true,
-                    hasControls: false,
-                    hasBorders: false,
-                    lockMovementX: true,
-                    lockMovementY: true,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    isBackground: true
-                });
-                canvas.add(vLine);
-                canvas.sendToBack(vLine);
-                backgroundLines.push(vLine);
-            }
-            // Linee orizzontali
-            for (let i = 0; i <= height + smallGrid; i += smallGrid) {
-                const hLine = new fabric.Line([0, i, width + 10, i], {
-                    stroke: '#f0f0f0',
-                    strokeWidth: 0.5,
-                    selectable: false,
-                    evented: false,
-                    excludeFromExport: true,
-                    hasControls: false,
-                    hasBorders: false,
-                    lockMovementX: true,
-                    lockMovementY: true,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    isBackground: true
-                });
-                canvas.add(hLine);
-                canvas.sendToBack(hLine);
-                backgroundLines.push(hLine);
-            }
-            break;
-
-        case 'grid-large':
-            // Griglia grande (20px)
-            const largeGrid = 20;
-            // Linee verticali
-            for (let i = 0; i <= width + largeGrid; i += largeGrid) {
-                const vLine = new fabric.Line([i, 0, i, height + 10], {
-                    stroke: '#e0e0e0',
-                    strokeWidth: 1,
-                    selectable: false,
-                    evented: false,
-                    excludeFromExport: true,
-                    hasControls: false,
-                    hasBorders: false,
-                    lockMovementX: true,
-                    lockMovementY: true,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    isBackground: true
-                });
-                canvas.add(vLine);
-                canvas.sendToBack(vLine);
-                backgroundLines.push(vLine);
-            }
-            // Linee orizzontali
-            for (let i = 0; i <= height + largeGrid; i += largeGrid) {
-                const hLine = new fabric.Line([0, i, width + 10, i], {
-                    stroke: '#e0e0e0',
-                    strokeWidth: 1,
-                    selectable: false,
-                    evented: false,
-                    excludeFromExport: true,
-                    hasControls: false,
-                    hasBorders: false,
-                    lockMovementX: true,
-                    lockMovementY: true,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    isBackground: true
-                });
-                canvas.add(hLine);
-                canvas.sendToBack(hLine);
-                backgroundLines.push(hLine);
-            }
-            break;
-
-        case 'none':
-            // Nessuno sfondo
-            break;
-    }
-
-    canvas.renderAll();
+    // Applica lo sfondo anche per lo studente
+    applyBackgroundPattern();
 }
 
 // Cambia sfondo
@@ -310,7 +156,7 @@ function setBackground(type, event) {
     if (!currentSubjectId) return;
     
     currentBackground = type;
-    drawBackground();
+    applyBackgroundPattern();
     
     // Aggiorna bottone attivo
     document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -326,13 +172,39 @@ function setBackground(type, event) {
     debouncedSave();
 }
 
+// Aggiungi questa funzione PRIMA della funzione selectTool nel file canvas.js
+
+// Funzione per pulire i listener della gomma
+function cleanupEraserListeners() {
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+    
+    // Riabilita la selezione di tutti gli oggetti
+    canvas.forEachObject(function(obj) {
+        obj.selectable = true;
+        obj.evented = true;
+    });
+    
+    // Ripristina cursori normali
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'move';
+    
+    // Pulisci il canvas superiore
+    canvas.clearContext(canvas.contextTop);
+}
+
 // Seleziona strumento
 function selectTool(tool, event) {
-    // Non permettere la selezione di strumenti se non c'è una materia
     if (!currentSubjectId) {
         return;
     }
     
+   // AGGIUNGI QUESTA RIGA:
+    if (currentTool === 'eraser' && tool !== 'eraser') {
+        cleanupEraserListeners();
+    }
+
     currentTool = tool;
     
     // Aggiorna bottone attivo
@@ -356,13 +228,161 @@ function selectTool(tool, event) {
             canvas.freeDrawingBrush.width = 2;
             canvas.freeDrawingBrush.color = currentColor;
             break;
-        case 'eraser':
-            canvas.isDrawingMode = true;
-            canvas.selection = false;
-            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
-            canvas.freeDrawingBrush.width = 20;
-            canvas.freeDrawingBrush.color = '#FFFEF5';
-            break;
+       // Soluzione più semplice: nel file canvas.js, sostituisci solo il caso 'eraser':
+
+// Versione migliorata con cursore personalizzato per la gomma
+
+// Sostituisci il caso 'eraser' con questa versione che cancella SOLO i path
+
+case 'eraser':
+    canvas.isDrawingMode = false;
+    canvas.selection = false;
+    
+    // Disabilita la selezione di tutti gli oggetti durante l'uso della gomma
+    canvas.forEachObject(function(obj) {
+        obj.selectable = false;
+        obj.evented = false;
+    });
+    
+    let isErasing = false;
+    
+    // Rimuovi vecchi listener
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+    
+    // Mouse down - inizia a cancellare
+    canvas.on('mouse:down', function(options) {
+        if (currentTool !== 'eraser') return;
+        
+        isErasing = true;
+        const pointer = canvas.getPointer(options.e);
+        erasePathsAt(pointer.x, pointer.y);
+    });
+    
+    // Mouse move - cancella mentre muovi
+    canvas.on('mouse:move', function(options) {
+        if (!isErasing || currentTool !== 'eraser') return;
+        
+        const pointer = canvas.getPointer(options.e);
+        erasePathsAt(pointer.x, pointer.y);
+        
+        // Mostra visivamente l'area della gomma
+        canvas.clearContext(canvas.contextTop);
+        const ctx = canvas.contextTop;
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#cccccc';
+        ctx.beginPath();
+        ctx.arc(pointer.x, pointer.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+    
+    // Mouse up - fine cancellazione
+    canvas.on('mouse:up', function() {
+        if (currentTool !== 'eraser') return;
+        
+        isErasing = false;
+        canvas.clearContext(canvas.contextTop);
+        
+        // Riabilita la selezione degli oggetti (tranne i path)
+        canvas.forEachObject(function(obj) {
+            if (obj.type !== 'path') {
+                obj.selectable = true;
+                obj.evented = true;
+            }
+        });
+        
+        canvas.renderAll();
+        saveToUndoStack();
+        debouncedSave();
+    });
+    
+    // Funzione che cancella SOLO i path nell'area della gomma
+    function erasePathsAt(x, y) {
+        const eraserRadius = 20;
+        const objectsToRemove = [];
+        
+        canvas.forEachObject(function(obj) {
+            // IMPORTANTE: Cancella SOLO oggetti di tipo 'path'
+            if (obj.type !== 'path') return;
+            
+            // Controlla se il path è nell'area della gomma
+            if (isPathInEraserRange(obj, x, y, eraserRadius)) {
+                objectsToRemove.push(obj);
+            }
+        });
+        
+        // Rimuovi i path trovati
+        objectsToRemove.forEach(function(obj) {
+            canvas.remove(obj);
+        });
+        
+        if (objectsToRemove.length > 0) {
+            canvas.renderAll();
+        }
+    }
+    
+    // Funzione helper per verificare se un path è nel raggio della gomma
+    function isPathInEraserRange(pathObj, eraserX, eraserY, radius) {
+        if (!pathObj.path) return false;
+        
+        // Trasforma le coordinate della gomma nello spazio dell'oggetto
+        const point = fabric.util.transformPoint(
+            { x: eraserX, y: eraserY },
+            fabric.util.invertTransform(pathObj.calcTransformMatrix())
+        );
+        
+        // Controlla ogni segmento del path
+        for (let i = 0; i < pathObj.path.length; i++) {
+            const segment = pathObj.path[i];
+            if (segment.length >= 3) {
+                const px = segment[segment.length - 2];
+                const py = segment[segment.length - 1];
+                
+                const distance = Math.sqrt(
+                    Math.pow(px - point.x, 2) + 
+                    Math.pow(py - point.y, 2)
+                );
+                
+                if (distance <= radius) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    // Crea cursore personalizzato
+    const eraserSize = 20;
+    const cursorCanvas = document.createElement('canvas');
+    cursorCanvas.width = eraserSize * 2;
+    cursorCanvas.height = eraserSize * 2;
+    const ctx = cursorCanvas.getContext('2d');
+    
+    // Cerchio tratteggiato per la gomma
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(eraserSize, eraserSize, eraserSize - 1, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Icona gomma al centro
+    ctx.fillStyle = '#666';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⌫', eraserSize, eraserSize);
+    
+    const cursorUrl = cursorCanvas.toDataURL();
+    canvas.defaultCursor = `url(${cursorUrl}) ${eraserSize} ${eraserSize}, crosshair`;
+    canvas.hoverCursor = canvas.defaultCursor;
+    
+    break;
+
         case 'text':
             canvas.isDrawingMode = false;
             canvas.selection = true;
@@ -593,9 +613,7 @@ function uploadImage() {
 function saveToUndoStack() {
     if (!canvas) return;
     
-    const state = canvas.toJSON(['excludeFromExport']);
-    state.objects = state.objects.filter(obj => !obj.excludeFromExport);
-    
+    const state = canvas.toJSON();
     undoStack.push(state);
     redoStack = [];
     
@@ -625,12 +643,8 @@ function redo() {
 }
 
 function loadCanvasState(state) {
-    const tempBackground = currentBackground;
     canvas.clear();
-    
     canvas.loadFromJSON(state, () => {
-        currentBackground = tempBackground;
-        drawBackground();
         canvas.renderAll();
     });
 }
@@ -708,8 +722,6 @@ window.addEventListener('resize', function() {
                 width: width,
                 height: height
             });
-            
-            drawBackground();
         }
     }
     
@@ -726,3 +738,5 @@ window.addEventListener('resize', function() {
         }
     }
 });
+
+// IMPORTANTE: Non più necessaria la funzione drawBackground()

@@ -300,26 +300,28 @@ async function loadSubjectPages() {
     }
 }
 
+// In app.js, trova la funzione loadPage e aggiornala così:
+
 async function loadPage(subjectId, pageNumber) {
     if (!canvas) return;
     
-    // NUOVO: Verifica che sia la materia giusta
     if (subjectId !== currentSubjectId) {
         console.error('❌ Caricamento bloccato: materia diversa');
         return;
     }
     
-    // Imposta flag per evitare salvataggi durante il caricamento
     isLoadingPage = true;
-    
-    // NUOVO: Disabilita il canvas durante il caricamento
     canvas.isDrawingMode = false;
     
-    // Assicurati che il canvas sia abilitato per il disegno
     const page = await loadPageFromDB(subjectId, pageNumber);
     
     if (page) {
         currentBackground = page.background_type || 'lines';
+        
+        // NUOVO: Applica il pattern CSS invece di disegnare linee
+        if (typeof applyBackgroundPattern === 'function') {
+            applyBackgroundPattern();
+        }
         
         // Aggiorna bottoni sfondo
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -333,28 +335,26 @@ async function loadPage(subjectId, pageNumber) {
         
         canvas.clear();
         canvas.loadFromJSON(page.canvas_data, () => {
-            drawBackground();
             canvas.renderAll();
-            // Reset flag dopo il caricamento
             setTimeout(() => {
                 isLoadingPage = false;
-                canvas.isDrawingMode = true; // Riabilita solo dopo
+                canvas.isDrawingMode = true;
                 console.log('✅ Caricamento completato, salvataggio riabilitato');
             }, 500);
         });
     } else {
-        // Nuova pagina vuota
         canvas.clear();
         currentBackground = 'lines';
-        drawBackground();
-        // Reset flag
+        // NUOVO: Applica il pattern CSS per nuove pagine
+        if (typeof applyBackgroundPattern === 'function') {
+            applyBackgroundPattern();
+        }
         setTimeout(() => {
             isLoadingPage = false;
-            canvas.isDrawingMode = true; // Riabilita solo dopo
+            canvas.isDrawingMode = true;
         }, 500);
     }
     
-    // Reset undo/redo per la nuova pagina
     undoStack = [];
     redoStack = [];
     setTimeout(() => saveToUndoStack(), 200);
@@ -372,7 +372,9 @@ async function newPage() {
     canvas.clear();
     undoStack = [];
     redoStack = [];
-    drawBackground();
+if (typeof applyBackgroundPattern === 'function') {
+    applyBackgroundPattern();
+}
     saveToUndoStack();
     
     // Salva subito la nuova pagina vuota

@@ -807,3 +807,63 @@ body {
     }
     
 }
+
+/* Pattern di sfondo per il canvas */
+.page-wrapper {
+    position: relative;
+    background-color: #FFFEF5;
+}
+
+/* Pattern righe */
+.page-wrapper.bg-lines {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 29px,
+        #e0e0e0 29px,
+        #e0e0e0 30px
+    );
+}
+
+/* Pattern quadretti piccoli */
+.page-wrapper.bg-grid-small {
+    background-image: 
+        repeating-linear-gradient(
+            to right,
+            #f0f0f0,
+            #f0f0f0 0.5px,
+            transparent 0.5px,
+            transparent 10px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            #f0f0f0,
+            #f0f0f0 0.5px,
+            transparent 0.5px,
+            transparent 10px
+        );
+}
+
+/* Pattern quadretti grandi */
+.page-wrapper.bg-grid-large {
+    background-image: 
+        repeating-linear-gradient(
+            to right,
+            #e0e0e0,
+            #e0e0e0 1px,
+            transparent 1px,
+            transparent 20px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            #e0e0e0,
+            #e0e0e0 1px,
+            transparent 1px,
+            transparent 20px
+        );
+}
+
+/* Assicurati che il canvas sia trasparente */
+#noteCanvas, #studentCanvas {
+    background: transparent !important;
+}
